@@ -2,7 +2,7 @@
 
 from app.models import Usuario, UserRole
 from app.schemas.acompanhamento_schemas import TutorarAlunoIn, AcompanhamentoResponse
-from app.core.exceptions import PermissaoNegadaError, RecursoNaoEncontradoError, VinculoJaExistenteError
+from app.core.exceptions import PermissaoNegadaError, RecursoNaoEncontradoError, UsuarioNaoEncontradoError, VinculoJaExistenteError
 from app.repositories.aluno_repository import AlunoRepository
 from app.repositories.professor_repository import ProfessorRepository
 from app.repositories.disciplina_repository import DisciplinaRepository
@@ -42,6 +42,18 @@ class AcompanhamentoService:
         # Grava no banco e retorna uma mensagem de confirmação contendo o número da matrícula.
         self.aluno_repo.atualizar_tutor(aluno, usuario_logado.id)
         return {"mensagem": f"Você agora é o tutor responsável pela matrícula {aluno.matricula}."}
+
+    # Coordenador remove aluno de sua tutoria
+    def remover_tutor(self, matricula: str, usuario_logado: Usuario):
+        self._verificar_permissao_coordenador(usuario_logado)
+
+        aluno = self.aluno_repo.buscar_por_matricula(matricula)
+        if not aluno:
+            raise RecursoNaoEncontradoError(f"Aluno com matrícula '{matricula}' não encontrado.")
+
+        # Atualiza o tutor para None usando o método padrão do repositório
+        self.aluno_repo.atualizar_tutor(aluno, None)
+        return {"mensagem": "Tutoria encerrada com sucesso."}
 
     # Montagem do painel de acompanhamento inteligente
     def listar_sob_responsabilidade(self, usuario_logado: Usuario) -> AcompanhamentoResponse:

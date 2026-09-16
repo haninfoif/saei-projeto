@@ -24,16 +24,15 @@ export default function DashboardCoordenador() {
     disciplina_codigo: '',
   });
 
-  // Apenas a matrícula do aluno selecionado para tutoria
   const [alunoSelecionadoMatricula, setAlunoSelecionadoMatricula] = useState('');
 
-  // Modais de edição existentes
+  // Modais de edição
   const [disciplinaEditando, setDisciplinaEditando] = useState(null);
   const [novoNomeDisciplina, setNovoNomeDisciplina] = useState('');
   const [matriculaEditando, setMatriculaEditando] = useState(null);
   const [novoProfessorEmail, setNovoProfessorEmail] = useState('');
 
-  // Tema
+  // Tema Claro/Escuro
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') {
@@ -56,27 +55,35 @@ export default function DashboardCoordenador() {
     }
   };
 
-  // Carrega dados do banco e tutorados salvos
+  // 1. CARREGAR DADOS DO BANCO
   const carregarDadosDoBanco = async () => {
     try {
       setLoading(true);
       setErro('');
 
-      const [resDisciplinas, resProfessores, resMatriculas, resAlunos] = await Promise.all([
+      const [resDisciplinas, resProfessores, resMatriculas, resAlunos, resVinculos] = await Promise.all([
         api.get('/disciplinas/'),
         api.get('/auth/professores'),
         api.get('/matriculas/'),
         api.get('/auth/alunos').catch(() => ({ data: [] })),
+        api.get('/acompanhamento/meus-vinculos').catch(() => ({ data: null })),
       ]);
 
-      setDisciplinas(resDisciplinas.data);
-      setProfessores(resProfessores.data);
-      setMatriculas(resMatriculas.data);
-      setAlunos(resAlunos.data);
+      setDisciplinas(resDisciplinas.data || []);
+      setProfessores(resProfessores.data || []);
+      setMatriculas(resMatriculas.data || []);
+      setAlunos(resAlunos.data || []);
 
-      const salvos = localStorage.getItem('saei_tutorados');
-      if (salvos) {
-        setTutorados(JSON.parse(salvos));
+      if (resVinculos.data) {
+        if (Array.isArray(resVinculos.data)) {
+          setTutorados(resVinculos.data);
+        } else if (Array.isArray(resVinculos.data.tutorados)) {
+          setTutorados(resVinculos.data.tutorados);
+        } else if (Array.isArray(resVinculos.data.alunos)) {
+          setTutorados(resVinculos.data.alunos);
+        } else {
+          setTutorados([]);
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
@@ -179,38 +186,37 @@ export default function DashboardCoordenador() {
     }
   };
 
-  // --- TUTORIA DIRETA (APENAS SELECIONAR E VINCULAR) ---
-  const handleColocarSobTutoria = (e) => {
+  // --- ASSUMIR TUTORIA ---
+  const handleColocarSobTutoria = async (e) => {
     e.preventDefault();
-    if (!alunoSelecionadoMatricula.trim()) {
-      alert('Selecione um aluno.');
+    const matricula = alunoSelecionadoMatricula.trim();
+    if (!matricula) {
+      alert('Selecione ou digite a matrícula do aluno.');
       return;
     }
 
-    if (tutorados.some((t) => t.matricula === alunoSelecionadoMatricula.trim())) {
-      alert('Este aluno já está sob sua tutoria.');
-      return;
+    try {
+      await api.post('/acompanhamento/definir-coordenador-tutor', {
+        aluno_matricula: matricula,
+        matricula: matricula,
+      });
+      setAlunoSelecionadoMatricula('');
+      carregarDadosDoBanco();
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Erro ao definir coordenador como tutor.');
     }
-
-    const alunoAchado = alunos.find((a) => a.matricula === alunoSelecionadoMatricula.trim());
-
-    const novoTutorado = {
-      matricula: alunoSelecionadoMatricula.trim(),
-      nome: alunoAchado ? alunoAchado.nome : `Aluno (${alunoSelecionadoMatricula.trim()})`,
-      email: alunoAchado ? alunoAchado.email : 'Não informado',
-    };
-
-    const atualizados = [...tutorados, novoTutorado];
-    setTutorados(atualizados);
-    localStorage.setItem('saei_tutorados', JSON.stringify(atualizados));
-    setAlunoSelecionadoMatricula('');
   };
 
-  const handleRemoverTutoria = (matricula) => {
-    if (!confirm(`Remover aluno ${matricula} da sua tutoria?`)) return;
-    const atualizados = tutorados.filter((t) => t.matricula !== matricula);
-    setTutorados(atualizados);
-    localStorage.setItem('saei_tutorados', JSON.stringify(atualizados));
+  // --- CANCELAR/REMOVER TUTORIA ---
+  const handleRemoverTutoria = async (matricula) => {
+    if (!confirm(`Deseja remover o aluno ${matricula} da sua tutoria?`)) return;
+
+    try {
+      await api.delete(`/acompanhamento/remover-tutor/${matricula}`);
+      carregarDadosDoBanco();
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Erro ao remover aluno da tutoria.');
+    }
   };
 
   const handleLogout = () => {
@@ -228,7 +234,7 @@ export default function DashboardCoordenador() {
           <p className="text-xs text-blue-200 dark:text-slate-400">Gestão Inclusiva e Acompanhamento</p>
         </div>
         <div className="flex items-center space-x-3">
-          {/* Sol e Lua lado a lado */}
+          {/* Seletor de Tema Sol e Lua */}
           <div className="flex items-center bg-blue-800 dark:bg-slate-800 rounded-full p-1 border border-blue-700 dark:border-slate-700 space-x-1">
             <button
               type="button"
@@ -259,6 +265,7 @@ export default function DashboardCoordenador() {
               </svg>
             </button>
           </div>
+
           <button
             onClick={handleLogout}
             className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition shadow"
@@ -337,7 +344,7 @@ export default function DashboardCoordenador() {
           </div>
         )}
 
-        {/* 1. VISÃO GERAL */}
+        {/* VISÃO GERAL */}
         {!loading && activeTab === 'overview' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Painel Geral de Indicadores</h2>
@@ -362,12 +369,11 @@ export default function DashboardCoordenador() {
           </div>
         )}
 
-        {/* 2. TUTORIA DIRETA (APENAS SELECIONAR, TUTORAR E LISTAR) */}
+        {/* MINHA TUTORIA */}
         {!loading && activeTab === 'tutoria' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Alunos sob Minha Tutoria</h2>
 
-            {/* Form simples de seleção */}
             <form onSubmit={handleColocarSobTutoria} className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow space-y-4 border border-slate-100 dark:border-slate-800">
               <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">Adicionar Aluno à Tutoria</h3>
               <div className="flex flex-col md:flex-row gap-4">
@@ -379,7 +385,7 @@ export default function DashboardCoordenador() {
                       className="border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 rounded-lg text-sm w-full text-slate-800 dark:text-white focus:outline-blue-500"
                       required
                     >
-                      <option value="">Selecione o aluno</option>
+                      <option value="">Selecione o aluno cadastrado</option>
                       {alunos.map((aluno, idx) => (
                         <option key={idx} value={aluno.matricula}>
                           {aluno.nome} ({aluno.matricula})
@@ -407,46 +413,47 @@ export default function DashboardCoordenador() {
               </div>
             </form>
 
-            {/* Lista dos alunos tutorados */}
             <div className="bg-white dark:bg-slate-900 rounded-xl shadow overflow-hidden border border-slate-100 dark:border-slate-800">
               <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
                 <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold border-b dark:border-slate-700">
                   <tr>
                     <th className="p-4">Matrícula</th>
                     <th className="p-4">Nome do Aluno</th>
-                    <th className="p-4">E-mail</th>
                     <th className="p-4 text-center">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y dark:divide-slate-800">
                   {tutorados.length === 0 ? (
                     <tr>
-                      <td colSpan="4" className="p-6 text-center text-slate-400">
+                      <td colSpan="3" className="p-6 text-center text-slate-400">
                         Você não está tutorando nenhum aluno no momento.
                       </td>
                     </tr>
                   ) : (
-                    tutorados.map((aluno) => (
-                      <tr key={aluno.matricula} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-                        <td className="p-4 font-mono font-bold text-blue-600 dark:text-blue-400">
-                          {aluno.matricula}
-                        </td>
-                        <td className="p-4 font-bold text-slate-800 dark:text-white">
-                          {aluno.nome}
-                        </td>
-                        <td className="p-4 text-slate-500 dark:text-slate-400">
-                          {aluno.email}
-                        </td>
-                        <td className="p-4 text-center">
-                          <button
-                            onClick={() => handleRemoverTutoria(aluno.matricula)}
-                            className="text-red-500 dark:text-red-400 hover:underline text-xs font-semibold"
-                          >
-                            Remover da tutoria
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    tutorados.map((item, idx) => {
+                      const matricula = item.matricula || item.aluno_matricula || item.aluno?.matricula || '-';
+                      const nome = item.nome || item.aluno_nome || item.aluno?.nome || item.aluno?.usuario?.nome || 'Aluno';
+
+                      return (
+                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                          <td className="p-4 font-mono font-bold text-blue-600 dark:text-blue-400">
+                            {matricula}
+                          </td>
+                          <td className="p-4 font-bold text-slate-800 dark:text-white">
+                            {nome}
+                          </td>
+                          <td className="p-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoverTutoria(matricula)}
+                              className="text-red-500 dark:text-red-400 hover:underline text-xs font-semibold"
+                            >
+                              Remover da tutoria
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -454,7 +461,7 @@ export default function DashboardCoordenador() {
           </div>
         )}
 
-        {/* 3. DISCIPLINAS */}
+        {/* DISCIPLINAS */}
         {!loading && activeTab === 'disciplinas' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Gestão de Disciplinas</h2>
@@ -534,7 +541,7 @@ export default function DashboardCoordenador() {
           </div>
         )}
 
-        {/* 4. PROFESSORES */}
+        {/* PROFESSORES */}
         {!loading && activeTab === 'professores' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Corpo Docente Registrado</h2>
@@ -567,7 +574,7 @@ export default function DashboardCoordenador() {
           </div>
         )}
 
-        {/* 5. MATRÍCULAS */}
+        {/* MATRÍCULAS */}
         {!loading && activeTab === 'matriculas' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Matrículas e Vínculos Escolares</h2>

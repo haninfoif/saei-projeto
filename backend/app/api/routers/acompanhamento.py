@@ -17,6 +17,15 @@ def definir_tutor(
 ):
     return service.vincular_tutor(dados, current_user)
 
+# Remove o vínculo de tutoria do aluno pelo número de matrícula
+@router.delete("/remover-tutor/{matricula}", status_code=status.HTTP_200_OK)
+def remover_tutor(
+    matricula: str,
+    service: AcompanhamentoService = Depends(get_acompanhamento_service),
+    current_user: Usuario = Depends(get_current_user)
+):
+    return service.remover_tutor(matricula, current_user)
+
 # O sistema descobre pelo token quem é a pessoa: se for coordenador, entrega os tutorados; se for professor, entrega os alunos das suas disciplinas; se for aluno, nega com erro 403.
 @router.get("/meus-vinculos", response_model=AcompanhamentoResponse)
 def listar_vinculos(
