@@ -94,7 +94,7 @@ export default function Login() {
           onClick={() => setTheme(true)}
           className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
             isDarkMode
-              ? 'bg-slate-900 text-yellow-400 shadow-md scale-105'
+              ? 'bg-slate-900 text-blue-400 shadow-md scale-105'
               : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
           }`}
           title="Modo Escuro"
@@ -136,7 +136,7 @@ export default function Login() {
               <input
                 type={mostrarSenha ? 'text' : 'password'}
                 required
-                placeholder="••••••••"
+                placeholder="Digite sua senha"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 pr-10 text-sm text-slate-800 dark:text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"

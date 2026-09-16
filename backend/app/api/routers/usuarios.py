@@ -58,6 +58,15 @@ def read_users_me(current_user: Usuario = Depends(get_current_user)):
     """Retorna o usuário atualmente autenticado."""
     return current_user
 
+# Retorna a lista de todos os alunos
+@router.get("/alunos", response_model=List[usuario_schemas.AlunoResumoPublico], status_code=status.HTTP_200_OK)
+def listar_alunos(
+    service: UsuarioService = Depends(get_usuario_service),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Retorna a lista de todos os alunos cadastrados para tutoria e acompanhamento."""
+    return service.listar_alunos()
+
 # Rota que retorna a lista de todos os professores cadastrados
 @router.get("/professores", response_model=List[usuario_schemas.ProfessorResumoPublico], status_code=status.HTTP_200_OK)
 def listar_professores(

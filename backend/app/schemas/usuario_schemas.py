@@ -28,6 +28,15 @@ class AlunoCreate(BaseModel):
     senha: str
     matricula: str
 
+# Schema resumo do aluno para tutoria e matrículas
+class AlunoResumoPublico(BaseModel):
+    nome: str
+    email: EmailStr
+    matricula: str
+
+    class Config:
+        from_attributes = True
+
 # formulário de cadastro de funcionário (professor ou coordenador)
 class FuncionarioCreate(BaseModel):
     nome: str

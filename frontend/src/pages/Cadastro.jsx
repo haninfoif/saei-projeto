@@ -118,7 +118,7 @@ export default function Cadastro() {
         <button
           onClick={() => setTheme(true)}
           className={`flex items-center justify-center w-8 h-8 rounded-full transition ${
-            isDarkMode ? 'bg-slate-700 text-yellow-400 shadow' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+            isDarkMode ? 'bg-slate-900 text-blue-400 shadow' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
           }`}
           title="Modo Escuro"
         >

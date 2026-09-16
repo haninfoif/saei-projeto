@@ -43,6 +43,18 @@ class UsuarioService:
         user_salvo.matricula = dados.matricula # para que o Pydantic consiga preencher o campo na resposta final da API
         return user_salvo
 
+    # Listagem de alunos
+    def listar_alunos(self) -> list[dict]:
+        alunos = self.aluno_repo.listar_todos()
+        return [
+            {
+                "nome": a.usuario.nome,
+                "email": a.usuario.email,
+                "matricula": a.matricula
+            }
+            for a in alunos
+        ]
+
     # Fluxo de registro de professor. Confere se o e-mail não pertence a outro funcionário, cria o usuário com role PROFESSOR e instancia o perfil Professor().
     def registrar_professor(self, dados: FuncionarioCreate) -> Usuario:
         self._verificar_email_funcionario(dados.email)

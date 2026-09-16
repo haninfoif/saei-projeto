@@ -1,7 +1,7 @@
 # Isola todas as consultas e alterações que ocorrem especificamente na tabela alunos
 
 from sqlalchemy.orm import Session
-from app.models import Aluno
+from app.models import Aluno, Usuario
 
 class AlunoRepository:
     def __init__(self, db: Session):
@@ -20,6 +20,14 @@ class AlunoRepository:
         aluno.tutor_id = tutor_id
         self.db.commit()
         self.db.refresh(aluno)
+
+    # Lista todos os alunos
+    def listar_todos(self) -> list[Aluno]:
+        return (
+            self.db.query(Aluno)
+            .join(Usuario, Aluno.usuario_id == Usuario.id)
+            .all()
+        )
 
     # Lista todos os alunos pelo ID do tutor
     def listar_por_tutor(self, coordenador_id: int) -> list[Aluno]:

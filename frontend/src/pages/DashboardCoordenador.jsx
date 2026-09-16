@@ -9,10 +9,14 @@ export default function DashboardCoordenador() {
   const [disciplinas, setDisciplinas] = useState([]);
   const [professores, setProfessores] = useState([]);
   const [matriculas, setMatriculas] = useState([]);
+  const [alunos, setAlunos] = useState([]);
+  const [tutorados, setTutorados] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [isDarkMode, setIsDarkMode] = useState(false);
 
+  // Formulários
   const [novaDisciplina, setNovaDisciplina] = useState({ nome: '', codigo: '' });
   const [novaMatricula, setNovaMatricula] = useState({
     aluno_matricula: '',
@@ -20,12 +24,16 @@ export default function DashboardCoordenador() {
     disciplina_codigo: '',
   });
 
+  // Apenas a matrícula do aluno selecionado para tutoria
+  const [alunoSelecionadoMatricula, setAlunoSelecionadoMatricula] = useState('');
+
+  // Modais de edição existentes
   const [disciplinaEditando, setDisciplinaEditando] = useState(null);
   const [novoNomeDisciplina, setNovoNomeDisciplina] = useState('');
-
   const [matriculaEditando, setMatriculaEditando] = useState(null);
   const [novoProfessorEmail, setNovoProfessorEmail] = useState('');
 
+  // Tema
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
     if (savedTheme === 'dark') {
@@ -48,20 +56,28 @@ export default function DashboardCoordenador() {
     }
   };
 
+  // Carrega dados do banco e tutorados salvos
   const carregarDadosDoBanco = async () => {
     try {
       setLoading(true);
       setErro('');
 
-      const [resDisciplinas, resProfessores, resMatriculas] = await Promise.all([
+      const [resDisciplinas, resProfessores, resMatriculas, resAlunos] = await Promise.all([
         api.get('/disciplinas/'),
         api.get('/auth/professores'),
         api.get('/matriculas/'),
+        api.get('/auth/alunos').catch(() => ({ data: [] })),
       ]);
 
       setDisciplinas(resDisciplinas.data);
       setProfessores(resProfessores.data);
       setMatriculas(resMatriculas.data);
+      setAlunos(resAlunos.data);
+
+      const salvos = localStorage.getItem('saei_tutorados');
+      if (salvos) {
+        setTutorados(JSON.parse(salvos));
+      }
     } catch (err) {
       console.error('Erro ao carregar dados:', err);
       if (err.response?.status === 401 || err.response?.status === 403) {
@@ -79,6 +95,7 @@ export default function DashboardCoordenador() {
     carregarDadosDoBanco();
   }, []);
 
+  // --- DISCIPLINAS ---
   const handleAddDisciplina = async (e) => {
     e.preventDefault();
     try {
@@ -122,6 +139,7 @@ export default function DashboardCoordenador() {
     }
   };
 
+  // --- MATRÍCULAS ---
   const handleAddMatricula = async (e) => {
     e.preventDefault();
     try {
@@ -161,6 +179,40 @@ export default function DashboardCoordenador() {
     }
   };
 
+  // --- TUTORIA DIRETA (APENAS SELECIONAR E VINCULAR) ---
+  const handleColocarSobTutoria = (e) => {
+    e.preventDefault();
+    if (!alunoSelecionadoMatricula.trim()) {
+      alert('Selecione um aluno.');
+      return;
+    }
+
+    if (tutorados.some((t) => t.matricula === alunoSelecionadoMatricula.trim())) {
+      alert('Este aluno já está sob sua tutoria.');
+      return;
+    }
+
+    const alunoAchado = alunos.find((a) => a.matricula === alunoSelecionadoMatricula.trim());
+
+    const novoTutorado = {
+      matricula: alunoSelecionadoMatricula.trim(),
+      nome: alunoAchado ? alunoAchado.nome : `Aluno (${alunoSelecionadoMatricula.trim()})`,
+      email: alunoAchado ? alunoAchado.email : 'Não informado',
+    };
+
+    const atualizados = [...tutorados, novoTutorado];
+    setTutorados(atualizados);
+    localStorage.setItem('saei_tutorados', JSON.stringify(atualizados));
+    setAlunoSelecionadoMatricula('');
+  };
+
+  const handleRemoverTutoria = (matricula) => {
+    if (!confirm(`Remover aluno ${matricula} da sua tutoria?`)) return;
+    const atualizados = tutorados.filter((t) => t.matricula !== matricula);
+    setTutorados(atualizados);
+    localStorage.setItem('saei_tutorados', JSON.stringify(atualizados));
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -176,7 +228,7 @@ export default function DashboardCoordenador() {
           <p className="text-xs text-blue-200 dark:text-slate-400">Gestão Inclusiva e Acompanhamento</p>
         </div>
         <div className="flex items-center space-x-3">
-          {/* Seletor de Tema Sol e Lua Lado a Lado no Header */}
+          {/* Sol e Lua lado a lado */}
           <div className="flex items-center bg-blue-800 dark:bg-slate-800 rounded-full p-1 border border-blue-700 dark:border-slate-700 space-x-1">
             <button
               type="button"
@@ -197,7 +249,7 @@ export default function DashboardCoordenador() {
               onClick={() => setTheme(true)}
               className={`flex items-center justify-center w-7 h-7 rounded-full transition-all duration-200 ${
                 isDarkMode
-                  ? 'bg-slate-900 text-yellow-400 shadow-md scale-105'
+                  ? 'bg-slate-900 text-blue-400 shadow-md scale-105'
                   : 'text-blue-200 hover:text-white'
               }`}
               title="Modo Escuro"
@@ -207,13 +259,6 @@ export default function DashboardCoordenador() {
               </svg>
             </button>
           </div>
-
-          <button
-            onClick={carregarDadosDoBanco}
-            className="text-xs bg-blue-800 hover:bg-blue-700 dark:bg-slate-800 dark:hover:bg-slate-700 px-3 py-2 rounded-lg transition border border-blue-600 dark:border-slate-700 font-semibold"
-          >
-            🔄 Atualizar
-          </button>
           <button
             onClick={handleLogout}
             className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition shadow"
@@ -225,10 +270,10 @@ export default function DashboardCoordenador() {
 
       {/* Abas */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 pt-4 transition-colors">
-        <nav className="flex space-x-6">
+        <nav className="flex space-x-6 overflow-x-auto">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`pb-3 font-semibold text-sm border-b-2 transition ${
+            className={`pb-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
               activeTab === 'overview'
                 ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
@@ -237,8 +282,18 @@ export default function DashboardCoordenador() {
             Visão Geral
           </button>
           <button
+            onClick={() => setActiveTab('tutoria')}
+            className={`pb-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
+              activeTab === 'tutoria'
+                ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
+            }`}
+          >
+            Minha Tutoria ({tutorados.length})
+          </button>
+          <button
             onClick={() => setActiveTab('disciplinas')}
-            className={`pb-3 font-semibold text-sm border-b-2 transition ${
+            className={`pb-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
               activeTab === 'disciplinas'
                 ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
@@ -248,7 +303,7 @@ export default function DashboardCoordenador() {
           </button>
           <button
             onClick={() => setActiveTab('professores')}
-            className={`pb-3 font-semibold text-sm border-b-2 transition ${
+            className={`pb-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
               activeTab === 'professores'
                 ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
@@ -258,7 +313,7 @@ export default function DashboardCoordenador() {
           </button>
           <button
             onClick={() => setActiveTab('matriculas')}
-            className={`pb-3 font-semibold text-sm border-b-2 transition ${
+            className={`pb-3 font-semibold text-sm border-b-2 transition whitespace-nowrap ${
               activeTab === 'matriculas'
                 ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700'
@@ -282,11 +337,15 @@ export default function DashboardCoordenador() {
           </div>
         )}
 
-        {/* VISÃO GERAL */}
+        {/* 1. VISÃO GERAL */}
         {!loading && activeTab === 'overview' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Painel Geral de Indicadores</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white dark:bg-slate-900 p-5 rounded-xl shadow border-l-4 border-amber-500 border border-slate-100 dark:border-slate-800">
+                <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Alunos sob Minha Tutoria</p>
+                <p className="text-3xl font-extrabold text-slate-800 dark:text-white mt-2">{tutorados.length}</p>
+              </div>
               <div className="bg-white dark:bg-slate-900 p-5 rounded-xl shadow border-l-4 border-blue-500 border border-slate-100 dark:border-slate-800">
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Disciplinas Cadastradas</p>
                 <p className="text-3xl font-extrabold text-slate-800 dark:text-white mt-2">{disciplinas.length}</p>
@@ -303,7 +362,99 @@ export default function DashboardCoordenador() {
           </div>
         )}
 
-        {/* DISCIPLINAS */}
+        {/* 2. TUTORIA DIRETA (APENAS SELECIONAR, TUTORAR E LISTAR) */}
+        {!loading && activeTab === 'tutoria' && (
+          <div className="space-y-6">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Alunos sob Minha Tutoria</h2>
+
+            {/* Form simples de seleção */}
+            <form onSubmit={handleColocarSobTutoria} className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow space-y-4 border border-slate-100 dark:border-slate-800">
+              <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">Adicionar Aluno à Tutoria</h3>
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1">
+                  {alunos.length > 0 ? (
+                    <select
+                      value={alunoSelecionadoMatricula}
+                      onChange={(e) => setAlunoSelecionadoMatricula(e.target.value)}
+                      className="border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 rounded-lg text-sm w-full text-slate-800 dark:text-white focus:outline-blue-500"
+                      required
+                    >
+                      <option value="">Selecione o aluno</option>
+                      {alunos.map((aluno, idx) => (
+                        <option key={idx} value={aluno.matricula}>
+                          {aluno.nome} ({aluno.matricula})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      placeholder="Digite a matrícula do aluno (ex: 20260101)"
+                      value={alunoSelecionadoMatricula}
+                      onChange={(e) => setAlunoSelecionadoMatricula(e.target.value)}
+                      className="border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 rounded-lg text-sm w-full text-slate-800 dark:text-white focus:outline-blue-500"
+                      required
+                    />
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="bg-amber-600 hover:bg-amber-700 text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition shadow whitespace-nowrap"
+                >
+                  Colocar sob minha tutoria
+                </button>
+              </div>
+            </form>
+
+            {/* Lista dos alunos tutorados */}
+            <div className="bg-white dark:bg-slate-900 rounded-xl shadow overflow-hidden border border-slate-100 dark:border-slate-800">
+              <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold border-b dark:border-slate-700">
+                  <tr>
+                    <th className="p-4">Matrícula</th>
+                    <th className="p-4">Nome do Aluno</th>
+                    <th className="p-4">E-mail</th>
+                    <th className="p-4 text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y dark:divide-slate-800">
+                  {tutorados.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" className="p-6 text-center text-slate-400">
+                        Você não está tutorando nenhum aluno no momento.
+                      </td>
+                    </tr>
+                  ) : (
+                    tutorados.map((aluno) => (
+                      <tr key={aluno.matricula} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+                        <td className="p-4 font-mono font-bold text-blue-600 dark:text-blue-400">
+                          {aluno.matricula}
+                        </td>
+                        <td className="p-4 font-bold text-slate-800 dark:text-white">
+                          {aluno.nome}
+                        </td>
+                        <td className="p-4 text-slate-500 dark:text-slate-400">
+                          {aluno.email}
+                        </td>
+                        <td className="p-4 text-center">
+                          <button
+                            onClick={() => handleRemoverTutoria(aluno.matricula)}
+                            className="text-red-500 dark:text-red-400 hover:underline text-xs font-semibold"
+                          >
+                            Remover da tutoria
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* 3. DISCIPLINAS */}
         {!loading && activeTab === 'disciplinas' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Gestão de Disciplinas</h2>
@@ -383,7 +534,7 @@ export default function DashboardCoordenador() {
           </div>
         )}
 
-        {/* PROFESSORES */}
+        {/* 4. PROFESSORES */}
         {!loading && activeTab === 'professores' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Corpo Docente Registrado</h2>
@@ -416,7 +567,7 @@ export default function DashboardCoordenador() {
           </div>
         )}
 
-        {/* MATRÍCULAS */}
+        {/* 5. MATRÍCULAS */}
         {!loading && activeTab === 'matriculas' && (
           <div className="space-y-6">
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Matrículas e Vínculos Escolares</h2>
